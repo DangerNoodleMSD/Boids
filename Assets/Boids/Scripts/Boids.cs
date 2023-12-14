@@ -210,7 +210,6 @@ public class Boids : MonoBehaviour
         forces.GetData(cpuForces);
         rotations.GetData(cpuRotations);
 
-
         for (int i = 0; i < numberOfBoids; i++)
         {
             Vector2 v = new Vector2(-Mathf.Sin(Mathf.Deg2Rad * cpuRotations[i]), Mathf.Cos(Mathf.Deg2Rad * cpuRotations[i]));
@@ -218,10 +217,20 @@ public class Boids : MonoBehaviour
 
             Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + cpuForces[i]);
             Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + v, Color.red);
+
+
             if (rbBoids[i].velocity.magnitude > boidBehaviour.topSpeed)
                 rbBoids[i].velocity = rbBoids[i].velocity.normalized * boidBehaviour.topSpeed;
 
-            boids[i].transform.rotation = Quaternion.Euler(new Vector3(0, 0, cpuRotations[i]));
+
+            if (float.IsNaN(cpuRotations[i]))
+            {
+                boids[i].transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
+            }
+            else
+            {
+                boids[i].transform.rotation = Quaternion.Euler(new Vector3(0, 0, cpuRotations[i]));
+            }
         }
     }
 }
