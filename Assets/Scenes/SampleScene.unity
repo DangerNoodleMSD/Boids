@@ -152,12 +152,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5109d72712a93ca46b8675ce663af9af, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  computeShader: {fileID: 7200000, guid: 43ffaa5d34dcdf2458cd917aa5edc2b3, type: 3}
   numberOfBoids: 49
   scale: 0.5
   borderX: 15
   borderY: 9
   boid: {fileID: 1075625185356421612, guid: 3fe9666b9bfabe84caaa2508b2ab7beb, type: 3}
   wall: {fileID: 2552846676128233953, guid: b34b519b239485042a64f73699186450, type: 3}
+  boidBehaviour:
+    cpuForwardWeight: 1
+    cpuSeparationWeight: 0
+    cpuAlignmentWeight: 0
+    cpuCohesionWeight: 0
+    cpuViewRadius: 0
+    topSpeed: 2
 --- !u!4 &214899883
 Transform:
   m_ObjectHideFlags: 0

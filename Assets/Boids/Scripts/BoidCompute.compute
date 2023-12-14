@@ -1,0 +1,58 @@
+#pragma kernel CSMain
+
+RWStructuredBuffer<float2> _Positions;
+RWStructuredBuffer<float> _Rotations;
+RWStructuredBuffer<float2> _Forces;
+RWStructuredBuffer<float2> _Velocities;
+
+float _ForwardWeight, _SeparationWeight, _AlignmentWeight, _CohesionWeight, _ViewRadius;
+int _NoBoids;
+
+void ComputeVectors(uint id)
+{
+    if(id < _NoBoids)
+    {
+        float2 force = float2(0.f, 0.f);
+        float2 separation;
+        float2 alignment;
+        float2 cohesion;
+        float rotation;
+    
+    
+        force += _ForwardWeight * float2( -sin(radians(_Rotations[id] + 30.f)), cos(radians(_Rotations[id] + 30.f)) );
+        /*for (int i = 0; i < _NoBoids; i++)
+        {
+        
+        }*/
+    
+        /*force += _SeparationWeight * separation;
+        force += _AlignmentWeight * alignment;
+        force += _CohesionWeight * cohesion;*/
+    
+        force /= length(force);
+        
+        /*if(_Velocities[id] == float2(0.f, 0.f))
+        {
+            _Rotations[id] = 0.f;
+        }
+        else
+        {
+            float2 normalizedVelocity = normalize(_Velocities[id]);
+            
+            rotation = atan2(normalizedVelocity.y, normalizedVelocity.x);
+            _Rotations[id] = degrees(rotation) - 90.f;
+        }*/
+        float2 normalizedVelocity = normalize(_Velocities[id]);
+            
+        rotation = atan2(normalizedVelocity.y, normalizedVelocity.x);
+        _Rotations[id] = degrees(rotation) - 90.f;
+        
+        _Forces[id] = force;
+    }
+}
+
+[numthreads(64,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    ComputeVectors(id.x);
+}

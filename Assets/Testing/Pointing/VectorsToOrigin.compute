@@ -1,0 +1,18 @@
+#pragma kernel VectorTwos
+
+RWStructuredBuffer<float2> _Positions;
+RWStructuredBuffer<float2> _Results;
+uint _SizeOfPositons;
+float2 _Origin;
+
+[numthreads(8,8,1)]
+void VectorTwos (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x < _SizeOfPositons && id.y < _SizeOfPositons)
+    {
+        int index = id.y * _SizeOfPositons + id.x;
+        float2 toOrigin = _Origin - _Positions[index];
+        toOrigin = toOrigin / length(toOrigin) * 0.5f;
+        _Results[index] = toOrigin + _Positions[index];
+    }
+}

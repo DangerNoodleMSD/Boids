@@ -1,9 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using TreeEditor;
 using UnityEngine;
 
 public class Boids : MonoBehaviour
 {
+    [SerializeField]
+    ComputeShader computeShader;
     [SerializeField, Range(1, 81)]
     int numberOfBoids = 30;
     [SerializeField]
@@ -24,13 +27,58 @@ public class Boids : MonoBehaviour
     float wallThickness = 0.2f;
 
     GameObject[] boids;
+    Rigidbody2D[] rbBoids;
 
     int borderXid = Shader.PropertyToID("_borderX"),
-        borderYid = Shader.PropertyToID("_borderY");
+        borderYid = Shader.PropertyToID("_borderY"),
+        positionsID = Shader.PropertyToID("_Positions"),
+        rotationsID = Shader.PropertyToID("_Rotations"),
+        forcesID = Shader.PropertyToID("_Forces"),
+        velocitiesID = Shader.PropertyToID("_Velocities"),
+        forwardWeightID = Shader.PropertyToID("_ForwardWeight"),
+        separationWeightID = Shader.PropertyToID("_SeparationWeight"),
+        alignmentWeightID = Shader.PropertyToID("_AlignmentWeight"),
+        cohesionWeightID = Shader.PropertyToID("_CohesionWeight"),
+        viewRadiusID = Shader.PropertyToID("_ViewRadius"),
+        numberOfBoidsID = Shader.PropertyToID("_NoBoids");
+
+    int kernel;
+
+    [System.Serializable]
+    struct BoidBehaviour
+    {
+        public float cpuForwardWeight,
+            cpuSeparationWeight,
+            cpuAlignmentWeight,
+            cpuCohesionWeight;
+        [SerializeField, Range(0, 10)]
+        public float cpuViewRadius;
+        [SerializeField, Range(0, 10)]
+        public float topSpeed;
+    }
+    
+    [SerializeField]
+    BoidBehaviour boidBehaviour;
+
+    ComputeBuffer positions, rotations, forces, velocities;
+
+    Vector2[] cpuPositions, cpuVelocities, cpuForces;
+    float[] cpuRotations;
 
     private void Awake()
     {
+        kernel = computeShader.FindKernel("CSMain");
         CreateWalls();
+    }
+    
+    private void Update()
+    {
+        if(boids.Length != numberOfBoids)
+        {
+            OnDisable();
+            OnEnable();
+        }
+        DispatchComputeShader();
     }
 
     void CreateWalls()
@@ -85,6 +133,13 @@ public class Boids : MonoBehaviour
     private void OnEnable()
     {
         boids = new GameObject[numberOfBoids];
+        rbBoids = new Rigidbody2D[numberOfBoids];
+        cpuPositions = new Vector2[numberOfBoids];
+        cpuForces = new Vector2[numberOfBoids];
+        cpuRotations = new float[numberOfBoids];
+        cpuVelocities = new Vector2[numberOfBoids];
+
+
         int squareRoot = Mathf.CeilToInt(Mathf.Sqrt(numberOfBoids));
         for (int i = 0; i < boids.Length; i++)
         {
@@ -95,7 +150,14 @@ public class Boids : MonoBehaviour
 
             boids[i].GetComponent<SpriteRenderer>().material.SetFloat(borderXid, borderX);
             boids[i].GetComponent<SpriteRenderer>().material.SetFloat(borderYid, borderY);
+
+            rbBoids[i] = boids[i].GetComponent<Rigidbody2D>();
         }
+
+        positions = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
+        rotations = new ComputeBuffer(numberOfBoids, sizeof(float));
+        forces = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
+        velocities = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
     }
 
     private void OnDisable()
@@ -106,14 +168,60 @@ public class Boids : MonoBehaviour
         }
 
         boids = null;
+        positions.Dispose();
+        rotations.Dispose();
+        forces.Dispose();
+        velocities.Dispose();
+
+        positions = null;
+        rotations = null;
+        forces = null;
+        velocities = null;
     }
 
-    private void Update()
+    void DispatchComputeShader()
     {
-        if(boids.Length != numberOfBoids)
+        computeShader.SetBuffer(0, positionsID, positions);
+        computeShader.SetBuffer(0, rotationsID, rotations);
+        computeShader.SetBuffer(0, forcesID, forces);
+        computeShader.SetBuffer(0, velocitiesID, velocities);
+        computeShader.SetFloat(forwardWeightID, boidBehaviour.cpuForwardWeight);
+        computeShader.SetFloat(separationWeightID, boidBehaviour.cpuSeparationWeight);
+        computeShader.SetFloat(alignmentWeightID, boidBehaviour.cpuAlignmentWeight);
+        computeShader.SetFloat(cohesionWeightID, boidBehaviour.cpuCohesionWeight);
+        computeShader.SetFloat(viewRadiusID, boidBehaviour.cpuViewRadius);
+        computeShader.SetInt(numberOfBoidsID, numberOfBoids);
+
+
+        for (int i = 0; i < numberOfBoids; i++)
         {
-            OnDisable();
-            OnEnable();
+            cpuPositions[i] = boids[i].transform.position;
+            cpuRotations[i] = boids[i].transform.rotation.eulerAngles.z;
+            cpuVelocities[i] = rbBoids[i].velocity;
+        }
+
+        positions.SetData(cpuPositions);
+        rotations.SetData(cpuRotations);
+        velocities.SetData(cpuVelocities);
+
+        int groups = Mathf.CeilToInt(numberOfBoids / 64f);
+        computeShader.Dispatch(kernel, groups, 1, 1);
+
+        forces.GetData(cpuForces);
+        rotations.GetData(cpuRotations);
+
+
+        for (int i = 0; i < numberOfBoids; i++)
+        {
+            Vector2 v = new Vector2(-Mathf.Sin(Mathf.Deg2Rad * cpuRotations[i]), Mathf.Cos(Mathf.Deg2Rad * cpuRotations[i]));
+            rbBoids[i].AddForce(cpuForces[i]);
+
+            Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + cpuForces[i]);
+            Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + v, Color.red);
+            if (rbBoids[i].velocity.magnitude > boidBehaviour.topSpeed)
+                rbBoids[i].velocity = rbBoids[i].velocity.normalized * boidBehaviour.topSpeed;
+
+            boids[i].transform.rotation = Quaternion.Euler(new Vector3(0, 0, cpuRotations[i]));
         }
     }
 }

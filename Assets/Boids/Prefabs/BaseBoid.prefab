@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 2985558399437915685}
   - component: {fileID: 3151827850126728025}
   - component: {fileID: 8490251501358413744}
-  - component: {fileID: -6594838801437629699}
+  - component: {fileID: 3166796141904357291}
   m_Layer: 0
   m_Name: BaseBoid
   m_TagString: Untagged
@@ -113,7 +113,7 @@ Rigidbody2D:
   m_SleepingMode: 0
   m_CollisionDetection: 1
   m_Constraints: 0
---- !u!60 &-6594838801437629699
+--- !u!60 &3166796141904357291
 PolygonCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
