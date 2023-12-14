@@ -79,6 +79,7 @@ public class Boids : MonoBehaviour
             OnEnable();
         }
         DispatchComputeShader();
+        MoveBoids();
     }
 
     void CreateWalls()
@@ -181,6 +182,7 @@ public class Boids : MonoBehaviour
 
     void DispatchComputeShader()
     {
+        //setting up the variables in compute shader and binding buffers
         computeShader.SetBuffer(0, positionsID, positions);
         computeShader.SetBuffer(0, rotationsID, rotations);
         computeShader.SetBuffer(0, forcesID, forces);
@@ -200,6 +202,7 @@ public class Boids : MonoBehaviour
             cpuVelocities[i] = rbBoids[i].velocity;
         }
 
+        //loading buffers with data
         positions.SetData(cpuPositions);
         rotations.SetData(cpuRotations);
         velocities.SetData(cpuVelocities);
@@ -207,9 +210,13 @@ public class Boids : MonoBehaviour
         int groups = Mathf.CeilToInt(numberOfBoids / 64f);
         computeShader.Dispatch(kernel, groups, 1, 1);
 
+        //getting data back
         forces.GetData(cpuForces);
         rotations.GetData(cpuRotations);
+    }
 
+    void MoveBoids()
+    {
         for (int i = 0; i < numberOfBoids; i++)
         {
             Vector2 v = new Vector2(-Mathf.Sin(Mathf.Deg2Rad * cpuRotations[i]), Mathf.Cos(Mathf.Deg2Rad * cpuRotations[i]));
@@ -223,7 +230,7 @@ public class Boids : MonoBehaviour
                 rbBoids[i].velocity = rbBoids[i].velocity.normalized * boidBehaviour.topSpeed;
 
 
-            if (float.IsNaN(cpuRotations[i]))
+            if (float.IsNaN(cpuRotations[i])) //at first frame cpuRotations is filled with non numbers
             {
                 boids[i].transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
             }
