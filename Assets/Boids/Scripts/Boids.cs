@@ -7,13 +7,13 @@ public class Boids : MonoBehaviour
 {
     [SerializeField]
     ComputeShader computeShader;
-    [SerializeField, Range(1, 81)]
+    [SerializeField, Range(1, 2000)]
     int numberOfBoids = 30;
     [SerializeField]
     float scale = 0.5f;
-    [SerializeField, Range(0, 19)]
+    [SerializeField, Range(0, 200)]
     float borderX = 15f;
-    [SerializeField, Range(0, 10)]
+    [SerializeField, Range(0, 200)]
     float borderY = 9f;
 
     [SerializeField]
@@ -28,6 +28,7 @@ public class Boids : MonoBehaviour
 
     GameObject[] boids;
     Rigidbody2D[] rbBoids;
+    Transform[] tBoids;
 
     int borderXid = Shader.PropertyToID("_borderX"),
         borderYid = Shader.PropertyToID("_borderY"),
@@ -55,15 +56,20 @@ public class Boids : MonoBehaviour
         public float cpuViewRadius;
         [SerializeField, Range(0, 10)]
         public float topSpeed;
+        [SerializeField, Range(0, 180)]
+        public float viewAngle;
+        [SerializeField]
+        public bool noise;
     }
     
     [SerializeField]
     BoidBehaviour boidBehaviour;
 
-    ComputeBuffer positions, rotations, forces, velocities;
+    ComputeBuffer gpuPositions, gpuRotations, gpuForces, gpuVelocities, gpuQuaternions;
 
-    Vector2[] cpuPositions, cpuVelocities, cpuForces;
-    float[] cpuRotations;
+    Vector2[] positions, velocities, forces;
+    Vector4[] quaternions;
+    float[] rotations;
 
     private void Awake()
     {
@@ -135,10 +141,12 @@ public class Boids : MonoBehaviour
     {
         boids = new GameObject[numberOfBoids];
         rbBoids = new Rigidbody2D[numberOfBoids];
-        cpuPositions = new Vector2[numberOfBoids];
-        cpuForces = new Vector2[numberOfBoids];
-        cpuRotations = new float[numberOfBoids];
-        cpuVelocities = new Vector2[numberOfBoids];
+        tBoids = new Transform[numberOfBoids];
+        positions = new Vector2[numberOfBoids];
+        forces = new Vector2[numberOfBoids];
+        rotations = new float[numberOfBoids];
+        velocities = new Vector2[numberOfBoids];
+        quaternions = new Vector4[numberOfBoids];
 
 
         int squareRoot = Mathf.CeilToInt(Mathf.Sqrt(numberOfBoids));
@@ -153,12 +161,14 @@ public class Boids : MonoBehaviour
             boids[i].GetComponent<SpriteRenderer>().material.SetFloat(borderYid, borderY);
 
             rbBoids[i] = boids[i].GetComponent<Rigidbody2D>();
+            tBoids[i] = boids[i].GetComponent<Transform>();
         }
 
-        positions = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
-        rotations = new ComputeBuffer(numberOfBoids, sizeof(float));
-        forces = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
-        velocities = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
+        gpuPositions = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
+        gpuRotations = new ComputeBuffer(numberOfBoids, sizeof(float));
+        gpuForces = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
+        gpuVelocities = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
+        gpuQuaternions = new ComputeBuffer(numberOfBoids, sizeof(float) * 4);
     }
 
     private void OnDisable()
@@ -169,60 +179,70 @@ public class Boids : MonoBehaviour
         }
 
         boids = null;
-        positions.Dispose();
-        rotations.Dispose();
-        forces.Dispose();
-        velocities.Dispose();
+        gpuPositions.Dispose();
+        gpuRotations.Dispose();
+        gpuForces.Dispose();
+        gpuVelocities.Dispose();
+        gpuQuaternions.Dispose();
 
-        positions = null;
-        rotations = null;
-        forces = null;
-        velocities = null;
+        gpuPositions = null;
+        gpuRotations = null;
+        gpuForces = null;
+        gpuVelocities = null;
+        gpuQuaternions = null;
     }
 
     void DispatchComputeShader()
     {
         //setting up the variables in compute shader and binding buffers
-        computeShader.SetBuffer(0, positionsID, positions);
-        computeShader.SetBuffer(0, rotationsID, rotations);
-        computeShader.SetBuffer(0, forcesID, forces);
-        computeShader.SetBuffer(0, velocitiesID, velocities);
+        computeShader.SetBuffer(0, positionsID, gpuPositions);
+        computeShader.SetBuffer(0, rotationsID, gpuRotations);
+        computeShader.SetBuffer(0, forcesID, gpuForces);
+        computeShader.SetBuffer(0, velocitiesID, gpuVelocities);
+        computeShader.SetBuffer(0, "_Quaternions", gpuQuaternions);
         computeShader.SetFloat(forwardWeightID, boidBehaviour.cpuForwardWeight);
         computeShader.SetFloat(separationWeightID, boidBehaviour.cpuSeparationWeight);
         computeShader.SetFloat(alignmentWeightID, boidBehaviour.cpuAlignmentWeight);
         computeShader.SetFloat(cohesionWeightID, boidBehaviour.cpuCohesionWeight);
         computeShader.SetFloat(viewRadiusID, boidBehaviour.cpuViewRadius);
         computeShader.SetInt(numberOfBoidsID, numberOfBoids);
+        computeShader.SetFloat("_ViewAngle", Mathf.Cos(boidBehaviour.viewAngle));
+        computeShader.SetBool("_Noise", boidBehaviour.noise);
 
-
+        //filling the arrays that will be given to gpu
         for (int i = 0; i < numberOfBoids; i++)
         {
-            cpuPositions[i] = boids[i].transform.position;
-            cpuRotations[i] = boids[i].transform.rotation.eulerAngles.z;
-            cpuVelocities[i] = rbBoids[i].velocity;
+            positions[i] = boids[i].transform.position;
+            rotations[i] = boids[i].transform.rotation.eulerAngles.z;
+            velocities[i] = rbBoids[i].velocity;
+            quaternions[i].x = tBoids[i].rotation.x;
+            quaternions[i].y = tBoids[i].rotation.y;
+            quaternions[i].z = tBoids[i].rotation.z;
+            quaternions[i].w = tBoids[i].rotation.w;
         }
 
-        //loading buffers with data
-        positions.SetData(cpuPositions);
-        rotations.SetData(cpuRotations);
-        velocities.SetData(cpuVelocities);
+        //loading buffers with data filled above
+        gpuPositions.SetData(positions);
+        gpuRotations.SetData(rotations);
+        gpuVelocities.SetData(velocities);
+        gpuQuaternions.SetData(quaternions);
 
         int groups = Mathf.CeilToInt(numberOfBoids / 64f);
         computeShader.Dispatch(kernel, groups, 1, 1);
 
         //getting data back
-        forces.GetData(cpuForces);
-        rotations.GetData(cpuRotations);
+        gpuForces.GetData(forces);
+        gpuRotations.GetData(rotations);
     }
 
     void MoveBoids()
     {
         for (int i = 0; i < numberOfBoids; i++)
         {
-            Vector2 v = new Vector2(-Mathf.Sin(Mathf.Deg2Rad * cpuRotations[i]), Mathf.Cos(Mathf.Deg2Rad * cpuRotations[i]));
-            rbBoids[i].AddForce(cpuForces[i]);
+            Vector2 v = new Vector2(-Mathf.Sin(Mathf.Deg2Rad * rotations[i]), Mathf.Cos(Mathf.Deg2Rad * rotations[i]));
+            rbBoids[i].AddForce(new Vector2(float.IsNaN(forces[i].x) ? 0 : forces[i].x, float.IsNaN(forces[i].y) ? 0 : forces[i].y) );
 
-            Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + cpuForces[i]);
+            Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + forces[i]);
             Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + v, Color.red);
 
 
@@ -230,14 +250,41 @@ public class Boids : MonoBehaviour
                 rbBoids[i].velocity = rbBoids[i].velocity.normalized * boidBehaviour.topSpeed;
 
 
-            if (float.IsNaN(cpuRotations[i])) //at first frame cpuRotations is filled with non numbers
+            if (float.IsNaN(rotations[i])) //at first frame cpuRotations is filled with non numbers
             {
                 boids[i].transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
             }
             else
             {
-                boids[i].transform.rotation = Quaternion.Euler(new Vector3(0, 0, cpuRotations[i]));
+                boids[i].transform.rotation = Quaternion.Euler(new Vector3(0, 0, rotations[i]));
             }
+
+            GetBoidInBounds(i);
+        }
+    }
+
+    void GetBoidInBounds(int i)
+    {
+        if (boids[i].transform.position.x > borderX / 2f)
+        {
+            float delta = boids[i].transform.position.x - borderX / 2f;
+            tBoids[i].position = new Vector2(-borderX / 2f + delta, tBoids[i].position.y);
+        }
+        if (boids[i].transform.position.x < -borderX / 2f)
+        {
+            float delta = boids[i].transform.position.x + borderX / 2f;
+            tBoids[i].position = new Vector2(borderX / 2f + delta, tBoids[i].position.y);
+        }
+
+        if (boids[i].transform.position.y > borderY / 2f)
+        {
+            float delta = boids[i].transform.position.y - borderY / 2f;
+            tBoids[i].position = new Vector2(tBoids[i].position.x, -borderY / 2f + delta);
+        }
+        if (boids[i].transform.position.y < -borderY / 2f)
+        {
+            float delta = boids[i].transform.position.y + borderY / 2f;
+            tBoids[i].position = new Vector2(tBoids[i].position.x, borderY / 2f + delta);
         }
     }
 }
