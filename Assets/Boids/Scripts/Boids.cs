@@ -1,3 +1,4 @@
+using Cinemachine;
 using System.Collections;
 using System.Collections.Generic;
 using TreeEditor;
@@ -48,17 +49,18 @@ public class Boids : MonoBehaviour
     [System.Serializable]
     struct BoidBehaviour
     {
-        public float cpuForwardWeight,
-            cpuSeparationWeight,
-            cpuAlignmentWeight,
-            cpuCohesionWeight;
-        [SerializeField, Range(0, 10)]
-        public float cpuViewRadius;
-        [SerializeField, Range(0, 10)]
+        public float forceMultiplier;
+        public float forwardWeight,
+            separationWeight,
+            alignmentWeight,
+            cohesionWeight;
+        [Range(0, 10)]
+        public float viewRadius;
+        [Range(0, 10)]
         public float topSpeed;
-        [SerializeField, Range(0, 180)]
+        [Range(0, 180)]
         public float viewAngle;
-        [SerializeField]
+
         public bool noise;
     }
     
@@ -147,13 +149,15 @@ public class Boids : MonoBehaviour
         rotations = new float[numberOfBoids];
         velocities = new Vector2[numberOfBoids];
         quaternions = new Vector4[numberOfBoids];
-
+        
+        
 
         int squareRoot = Mathf.CeilToInt(Mathf.Sqrt(numberOfBoids));
         for (int i = 0; i < boids.Length; i++)
         {
             boids[i] = Instantiate(boid);
             boids[i].transform.position = new Vector3(i % squareRoot - (squareRoot / 2f) + 0.5f, i / squareRoot - (squareRoot / 2f) + 0.5f, 0);
+            boids[i].transform.rotation = Quaternion.Euler(0, 0, Random.Range(-180, 180));
             boids[i].transform.parent = transform;
             boids[i].transform.localScale = new Vector2(scale / 2f, scale);
 
@@ -163,6 +167,8 @@ public class Boids : MonoBehaviour
             rbBoids[i] = boids[i].GetComponent<Rigidbody2D>();
             tBoids[i] = boids[i].GetComponent<Transform>();
         }
+        var vcam = GameObject.Find("Virtual Camera").GetComponent<CinemachineVirtualCamera>();
+        vcam.Follow = boids[0].transform;
 
         gpuPositions = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
         gpuRotations = new ComputeBuffer(numberOfBoids, sizeof(float));
@@ -200,13 +206,13 @@ public class Boids : MonoBehaviour
         computeShader.SetBuffer(0, forcesID, gpuForces);
         computeShader.SetBuffer(0, velocitiesID, gpuVelocities);
         computeShader.SetBuffer(0, "_Quaternions", gpuQuaternions);
-        computeShader.SetFloat(forwardWeightID, boidBehaviour.cpuForwardWeight);
-        computeShader.SetFloat(separationWeightID, boidBehaviour.cpuSeparationWeight);
-        computeShader.SetFloat(alignmentWeightID, boidBehaviour.cpuAlignmentWeight);
-        computeShader.SetFloat(cohesionWeightID, boidBehaviour.cpuCohesionWeight);
-        computeShader.SetFloat(viewRadiusID, boidBehaviour.cpuViewRadius);
+        computeShader.SetFloat(forwardWeightID, boidBehaviour.forwardWeight);
+        computeShader.SetFloat(separationWeightID, boidBehaviour.separationWeight);
+        computeShader.SetFloat(alignmentWeightID, boidBehaviour.alignmentWeight);
+        computeShader.SetFloat(cohesionWeightID, boidBehaviour.cohesionWeight);
+        computeShader.SetFloat(viewRadiusID, boidBehaviour.viewRadius);
         computeShader.SetInt(numberOfBoidsID, numberOfBoids);
-        computeShader.SetFloat("_ViewAngle", Mathf.Cos(boidBehaviour.viewAngle));
+        computeShader.SetFloat("_ViewAngle", Mathf.Cos(Mathf.Deg2Rad * boidBehaviour.viewAngle));
         computeShader.SetBool("_Noise", boidBehaviour.noise);
 
         //filling the arrays that will be given to gpu
@@ -240,7 +246,7 @@ public class Boids : MonoBehaviour
         for (int i = 0; i < numberOfBoids; i++)
         {
             Vector2 v = new Vector2(-Mathf.Sin(Mathf.Deg2Rad * rotations[i]), Mathf.Cos(Mathf.Deg2Rad * rotations[i]));
-            rbBoids[i].AddForce(new Vector2(float.IsNaN(forces[i].x) ? 0 : forces[i].x, float.IsNaN(forces[i].y) ? 0 : forces[i].y) );
+            rbBoids[i].AddForce(new Vector2(float.IsNaN(forces[i].x) ? 0 : forces[i].x * boidBehaviour.forceMultiplier, float.IsNaN(forces[i].y) ? 0 : forces[i].y * boidBehaviour.forceMultiplier) );
 
             Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + forces[i]);
             Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + v, Color.red);

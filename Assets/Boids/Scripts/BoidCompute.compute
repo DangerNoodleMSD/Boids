@@ -103,9 +103,12 @@ void ComputeVectors(uint id)
                     
                     separation += relativeVec / length(relativeVec) * _ViewRadius - relativeVec;
                     
+                    //separation += ((relativeVec / length(relativeVec)) * smoothstep(0, _ViewRadius, _ViewRadius - length(relativeVec))) / _ViewRadius;
+                    
                     cohesion += _Positions[i];
                     
-                    avgRotation += _Rotations[i] * (_ViewRadius / (_ViewRadius + length(relativeVec) ) );
+                    avgRotation += _Rotations[i] * (_ViewRadius / (_ViewRadius + length(relativeVec) ) ); //what?
+                    //influence decreases in function with distance? no, wtf is this ^
                     
                     avgQuaternion.x += _Quaternions[i].x;
                     avgQuaternion.y += _Quaternions[i].y;
@@ -126,7 +129,7 @@ void ComputeVectors(uint id)
             /* | */force += (cohesion - _Positions[id]) * _CohesionWeight;// |
             // +-------------------------------------------------------------+
             
-            rotationDiff = clamp(abs(_Rotations[id] - avgRotation) * (1.f / 90.f), 0.f, 1.f);
+            //rotationDiff = clamp(abs(_Rotations[id] - avgRotation) * (1.f / 90.f), 0.f, 1.f);
             /*force += rotationDiff * _AlignmentWeight * float2(
                 -sin(radians(_Rotations[id] - 90.f * (avgRotation < _Rotations[id]) + 90.f * (avgRotation > _Rotations[id]))),
                 cos(radians(_Rotations[id] - 90.f * (avgRotation < _Rotations[id]) + 90.f * (avgRotation > _Rotations[id])))
@@ -143,9 +146,9 @@ void ComputeVectors(uint id)
             
             EulerAngle avgE = QuaternionToEuler(avgQuaternion);
             
-            // +------------------------------------------------------------------------------------------------------+
-            /* | */force += rotationDiff * _AlignmentWeight * float2(-sin(radians(avgE.z)), cos(radians(avgE.z)));//  |
-            // +------------------------------------------------------------------------------------------------------+
+            // +---------------------------------------------------------------------------------------+
+            /* | */force += _AlignmentWeight * float2(-sin(radians(avgE.z)), cos(radians(avgE.z)));//  |
+            // +---------------------------------------------------------------------------------------+
         }
         
         // +----------------------------------------------+
