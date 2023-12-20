@@ -2,6 +2,7 @@ using Cinemachine;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class Boids : MonoBehaviour
 {
@@ -78,6 +79,7 @@ public class Boids : MonoBehaviour
     float[] rotations;
     float[] noiseAngles;
     float noiseDuration = 0f;
+    RaycastHit2D[] circleHit;
 
     private void Awake()
     {
@@ -94,6 +96,20 @@ public class Boids : MonoBehaviour
         }
         DispatchComputeShader();
         MoveBoids();
+
+        circleHit = Physics2D.CircleCastAll(new Vector2(0, 0), borderX > borderY ? borderX * (Mathf.Sqrt(2f) / 2f) : borderY * (Mathf.Sqrt(2) / 2f), new Vector2(0, 0), 0f);
+        foreach (var hit in circleHit)
+        {
+            Debug.DrawLine(new Vector2(0, 0), hit.point, Color.cyan);
+            Debug.DrawLine(hit.point, hit.point + hit.normal.normalized, Color.magenta);
+        }
+        Debug.Log(circleHit[0].point);
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(new Vector3(0, 0, 0), borderX > borderY ? borderX * (Mathf.Sqrt(2f) / 2f) : borderY * (Mathf.Sqrt(2) / 2f) );
     }
 
     void CreateWalls()
@@ -156,8 +172,7 @@ public class Boids : MonoBehaviour
         velocities = new Vector2[numberOfBoids];
         quaternions = new Vector4[numberOfBoids];
         noiseAngles = new float[numberOfBoids];
-        
-        
+
 
         int squareRoot = Mathf.CeilToInt(Mathf.Sqrt(numberOfBoids));
         for (int i = 0; i < boids.Length; i++)
