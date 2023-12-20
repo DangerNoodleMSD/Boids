@@ -7,8 +7,9 @@ RWStructuredBuffer<float> _Rotations;
 RWStructuredBuffer<float2> _Forces;
 RWStructuredBuffer<float2> _Velocities;
 RWStructuredBuffer<float4> _Quaternions;
+RWStructuredBuffer<float> _NoiseAngle;
 
-float _ForwardWeight, _SeparationWeight, _AlignmentWeight, _CohesionWeight, _ViewRadius, _ViewAngle;
+float _ForwardWeight, _SeparationWeight, _AlignmentWeight, _CohesionWeight, _ViewRadius, _ViewAngle, _NoiseWeight;
 int _NoBoids;
 bool _Noise;
 
@@ -67,6 +68,30 @@ float CosineAngleBetweenTwoVectors(float2 v1, float2 v2)
     return a/b;
 }
 
+float2 MakeVecAngl(float angle)
+{
+    return float2(-sin(radians(angle)), cos(radians(angle)));
+}
+
+float VecToAngle(float2 v)
+{
+    return degrees(atan2(-v.x, v.y));
+}
+
+float2 MakeVecAnglRel(float angle, float2 parentVector)
+{
+    float parentAngle = VecToAngle(parentVector);
+
+    float absoluteAngle = parentAngle + angle;
+
+    if (absoluteAngle < -180.f)
+        absoluteAngle += 360.f;
+    else if (absoluteAngle > 180.f)
+        absoluteAngle -= 360.f;
+
+    return MakeVecAngl(absoluteAngle);
+}
+
 void ComputeVectors(uint id)
 {
     if (id < _NoBoids)
@@ -92,6 +117,12 @@ void ComputeVectors(uint id)
         /* | */force += _ForwardWeight * directionVec;// |
         // +---------------------------------------------+
         
+        
+        
+        // +--------------------------------------------------------------------------------------+
+        /* | */force += _NoiseWeight * MakeVecAnglRel(_NoiseAngle[id], directionVec) * _Noise; // |
+        // +--------------------------------------------------------------------------------------+
+        
         for (int i = 0; i < _NoBoids; i++)
         {
             if(id != i)
@@ -109,6 +140,7 @@ void ComputeVectors(uint id)
                     
                     avgRotation += _Rotations[i] * (_ViewRadius / (_ViewRadius + length(relativeVec) ) ); //what?
                     //influence decreases in function with distance? no, wtf is this ^
+                    
                     
                     avgQuaternion.x += _Quaternions[i].x;
                     avgQuaternion.y += _Quaternions[i].y;

@@ -168,7 +168,10 @@ MonoBehaviour:
     viewRadius: 2
     topSpeed: 1.5
     viewAngle: 100
-    noise: 0
+    noise: 1
+    noiseUpdate: 1
+    noiseWeight: 0.3
+    noiseAngleMax: 30
 --- !u!4 &214899883
 Transform:
   m_ObjectHideFlags: 0

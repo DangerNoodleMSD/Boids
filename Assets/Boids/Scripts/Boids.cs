@@ -59,18 +59,25 @@ public class Boids : MonoBehaviour
         public float topSpeed;
         [Range(0, 180)]
         public float viewAngle;
-
         public bool noise;
+        [SerializeField, Range(0f, 10f)]
+        public float noiseUpdate;
+        [SerializeField, Range(0f, 10f)]
+        public float noiseWeight;
+        [SerializeField, Range(0, 90)]
+        public float noiseAngleMax;
     }
     
     [SerializeField]
     BoidBehaviour boidBehaviour;
 
-    ComputeBuffer gpuPositions, gpuRotations, gpuForces, gpuVelocities, gpuQuaternions;
+    ComputeBuffer gpuPositions, gpuRotations, gpuForces, gpuVelocities, gpuQuaternions, gpuNoiseAngles;
 
     Vector2[] positions, velocities, forces;
     Vector4[] quaternions;
     float[] rotations;
+    float[] noiseAngles;
+    float noiseDuration = 0f;
 
     private void Awake()
     {
@@ -148,6 +155,7 @@ public class Boids : MonoBehaviour
         rotations = new float[numberOfBoids];
         velocities = new Vector2[numberOfBoids];
         quaternions = new Vector4[numberOfBoids];
+        noiseAngles = new float[numberOfBoids];
         
         
 
@@ -174,6 +182,9 @@ public class Boids : MonoBehaviour
         gpuForces = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
         gpuVelocities = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
         gpuQuaternions = new ComputeBuffer(numberOfBoids, sizeof(float) * 4);
+        gpuNoiseAngles = new ComputeBuffer(numberOfBoids, sizeof(float));
+
+        UpdateNoiseBuffer();
     }
 
     private void OnDisable()
@@ -189,22 +200,32 @@ public class Boids : MonoBehaviour
         gpuForces.Dispose();
         gpuVelocities.Dispose();
         gpuQuaternions.Dispose();
+        gpuNoiseAngles.Dispose();
 
         gpuPositions = null;
         gpuRotations = null;
         gpuForces = null;
         gpuVelocities = null;
         gpuQuaternions = null;
+        gpuNoiseAngles = null;
     }
 
     void DispatchComputeShader()
     {
+        noiseDuration += Time.deltaTime;
+        if(noiseDuration > boidBehaviour.noiseUpdate)
+        {
+            noiseDuration -= boidBehaviour.noiseUpdate;
+            UpdateNoiseBuffer();
+        }
+
         //setting up the variables in compute shader and binding buffers
         computeShader.SetBuffer(0, positionsID, gpuPositions);
         computeShader.SetBuffer(0, rotationsID, gpuRotations);
         computeShader.SetBuffer(0, forcesID, gpuForces);
         computeShader.SetBuffer(0, velocitiesID, gpuVelocities);
         computeShader.SetBuffer(0, "_Quaternions", gpuQuaternions);
+        computeShader.SetBuffer(0, "_NoiseAngle", gpuNoiseAngles);
         computeShader.SetFloat(forwardWeightID, boidBehaviour.forwardWeight);
         computeShader.SetFloat(separationWeightID, boidBehaviour.separationWeight);
         computeShader.SetFloat(alignmentWeightID, boidBehaviour.alignmentWeight);
@@ -213,6 +234,7 @@ public class Boids : MonoBehaviour
         computeShader.SetInt(numberOfBoidsID, numberOfBoids);
         computeShader.SetFloat("_ViewAngle", Mathf.Cos(Mathf.Deg2Rad * boidBehaviour.viewAngle));
         computeShader.SetBool("_Noise", boidBehaviour.noise);
+        computeShader.SetFloat("_NoiseWeight", boidBehaviour.noiseWeight);
 
         //filling the arrays that will be given to gpu
         for (int i = 0; i < numberOfBoids; i++)
@@ -291,5 +313,14 @@ public class Boids : MonoBehaviour
             float delta = boids[i].transform.position.y + borderY / 2f;
             tBoids[i].position = new Vector2(tBoids[i].position.x, borderY / 2f + delta);
         }
+    }
+
+    void UpdateNoiseBuffer()
+    {
+        for (int i = 0; i < noiseAngles.Length; i++)
+        {
+            noiseAngles[i] = Random.Range(-boidBehaviour.noiseAngleMax, boidBehaviour.noiseAngleMax);
+        }
+        gpuNoiseAngles.SetData(noiseAngles);
     }
 }
