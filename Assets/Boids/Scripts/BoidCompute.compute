@@ -6,7 +6,6 @@ RWStructuredBuffer<float2> _Positions;
 RWStructuredBuffer<float> _Rotations;
 RWStructuredBuffer<float2> _Forces;
 RWStructuredBuffer<float2> _Velocities;
-RWStructuredBuffer<float4> _Quaternions;
 RWStructuredBuffer<float> _NoiseAngle;
 
 float _ForwardWeight, _SeparationWeight, _AlignmentWeight, _CohesionWeight, _ViewRadius, _ViewAngle, _NoiseWeight;
@@ -22,43 +21,6 @@ struct EulerAngle
 {
     float x, y, z;
 };
-
-EulerAngle QuaternionToEuler(Quaternion q)
-{
-    EulerAngle e;
-    float heading, attitude, bank, test;
-    test = q.x * q.y + q.z * q.w;
-    
-    if(test > 0.499f)
-    {
-        heading = 2 * atan2(q.x, q.w);
-        attitude = PI / 2;
-        bank = 0;
-        e.y = heading;
-        e.z = bank;
-        e.x = attitude;
-        return e;
-    }
-    if(test < 0.499f)
-    {
-        heading = -2 * atan2(q.x, q.w);
-        attitude = -PI / 2;
-        bank = 0;
-        e.y = heading;
-        e.z = bank;
-        e.x = attitude;
-        return e;
-    }
-    
-    heading = atan2(2 * q.y * q.w - 2 * q.x * q.z, 1 - 2 * q.y * q.y - 2 * q.z * q.z);
-    attitude = asin(2 * q.x * q.y + 2 * q.z * q.w);
-    bank = atan2(2 * q.x * q.w - 2 * q.y * q.z, 1 - 2 * q.x * q.x - 2 * q.z * q.z);
-    
-    e.y = heading;
-    e.z = bank;
-    e.x = attitude;
-    return e;
-}
 
 float CosineAngleBetweenTwoVectors(float2 v1, float2 v2)
 {
@@ -100,16 +62,28 @@ void ComputeVectors(uint id)
         float2 separation = float2(0.f, 0.f);
         float2 cohesion = float2(0.f, 0.f);
         float rotation = float2(0.f, 0.f);
-        float avgRotation = 0.f;
         float2 rotationToForce;
         int interactions = 0;
         float2 smoothRelVec;
         float2 relativeVec;
         float rotationDiff;
         
+        float2 avgDirectionVec = float2(0, 0);
         float2 directionVec;
         
         Quaternion avgQuaternion;
+        
+        if (_Velocities[id].x == 0 && _Velocities[id].y == 0)
+        {
+            _Rotations[id] = 0;
+        }
+        else
+        {
+            float2 normalizedVelocity = normalize(_Velocities[id]);
+            
+            rotation = atan2(normalizedVelocity.y, normalizedVelocity.x);
+            _Rotations[id] = degrees(rotation) - 90.f;
+        }
     
         directionVec = float2(-sin(radians(_Rotations[id])), cos(radians(_Rotations[id])));
         
@@ -132,20 +106,12 @@ void ComputeVectors(uint id)
                 {
                     interactions++;
                     
-                    separation += relativeVec / length(relativeVec) * _ViewRadius - relativeVec;
                     
-                    //separation += ((relativeVec / length(relativeVec)) * smoothstep(0, _ViewRadius, _ViewRadius - length(relativeVec))) / _ViewRadius;
+                    separation += relativeVec / length(relativeVec) * _ViewRadius - relativeVec;
                     
                     cohesion += _Positions[i];
                     
-                    avgRotation += _Rotations[i] * (_ViewRadius / (_ViewRadius + length(relativeVec) ) ); //what?
-                    //influence decreases in function with distance? no, wtf is this ^
-                    
-                    
-                    avgQuaternion.x += _Quaternions[i].x;
-                    avgQuaternion.y += _Quaternions[i].y;
-                    avgQuaternion.z += _Quaternions[i].z;
-                    avgQuaternion.w += _Quaternions[i].w;
+                    avgDirectionVec += normalize(_Velocities[i]);
                 }
             }
         }
@@ -155,44 +121,36 @@ void ComputeVectors(uint id)
         {
             separation /= interactions;
             cohesion /= interactions;
-            avgRotation /= interactions;
+            avgDirectionVec /= interactions;
             
             // +-------------------------------------------------------------+
             /* | */force += (cohesion - _Positions[id]) * _CohesionWeight;// |
             // +-------------------------------------------------------------+
+            // What does this do? ^^^^^^^^^^^^^^^^^^^^
             
-            //rotationDiff = clamp(abs(_Rotations[id] - avgRotation) * (1.f / 90.f), 0.f, 1.f);
-            /*force += rotationDiff * _AlignmentWeight * float2(
-                -sin(radians(_Rotations[id] - 90.f * (avgRotation < _Rotations[id]) + 90.f * (avgRotation > _Rotations[id]))),
-                cos(radians(_Rotations[id] - 90.f * (avgRotation < _Rotations[id]) + 90.f * (avgRotation > _Rotations[id])))
-            );*/
-            
-            //force += rotationDiff * _AlignmentWeight * float2(-sin(radians(avgRotation)), cos(radians(avgRotation)));
-            
-            //quaternions
-            float k = 1.0f / sqrt(avgQuaternion.x * avgQuaternion.x + avgQuaternion.y * avgQuaternion.y + avgQuaternion.z * avgQuaternion.z + avgQuaternion.w * avgQuaternion.w);
-            avgQuaternion.x *= k;
-            avgQuaternion.y *= k;
-            avgQuaternion.z *= k;
-            avgQuaternion.w *= k;
-            
-            EulerAngle avgE = QuaternionToEuler(avgQuaternion);
-            
-            // +---------------------------------------------------------------------------------------+
-            /* | */force += _AlignmentWeight * float2(-sin(radians(avgE.z)), cos(radians(avgE.z)));//  |
-            // +---------------------------------------------------------------------------------------+
+            float avgRotation;
+            // if there is at least a boid around apply the alignment
+            if (avgDirectionVec.x != 0 || avgDirectionVec.y != 0)
+            {
+                avgRotation = degrees(atan2(avgDirectionVec.y, avgDirectionVec.x)) - 90.f;
+            // +---------------------------------------------------------------------------------------------------+
+            /* | */ force += _AlignmentWeight * float2(-sin(radians(avgRotation)), cos(radians(avgRotation))); //  |
+            // +---------------------------------------------------------------------------------------------------+
+            }
         }
         
         // +----------------------------------------------+
         /* | */force += separation * _SeparationWeight;// |
         // +----------------------------------------------+
-    
-        force /= length(force);
         
-        float2 normalizedVelocity = normalize(_Velocities[id]);
-            
-        rotation = atan2(normalizedVelocity.y, normalizedVelocity.x);
-        _Rotations[id] = degrees(rotation) - 90.f;
+        if(length(force) != 0)
+        {
+            force /= length(force);
+        }
+        else
+        {
+            force = float2(0, 0);
+        }
         
         _Forces[id] = force;
     }

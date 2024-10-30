@@ -1,6 +1,7 @@
 using Cinemachine;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -31,6 +32,7 @@ public class Boids : MonoBehaviour
     Rigidbody2D[] rbBoids;
     Transform[] tBoids;
 
+    // We take the IDs to be able to set these variables in the compute shader
     int borderXid = Shader.PropertyToID("_borderX"),
         borderYid = Shader.PropertyToID("_borderY"),
         positionsID = Shader.PropertyToID("_Positions"),
@@ -44,6 +46,7 @@ public class Boids : MonoBehaviour
         viewRadiusID = Shader.PropertyToID("_ViewRadius"),
         numberOfBoidsID = Shader.PropertyToID("_NoBoids");
 
+    // kernel index     gets initialized in the OnEnable() function
     int kernel;
 
     [System.Serializable]
@@ -75,7 +78,6 @@ public class Boids : MonoBehaviour
     ComputeBuffer gpuPositions, gpuRotations, gpuForces, gpuVelocities, gpuQuaternions, gpuNoiseAngles;
 
     Vector2[] positions, velocities, forces;
-    Vector4[] quaternions;
     float[] rotations;
     float[] noiseAngles;
     float noiseDuration = 0f;
@@ -97,13 +99,12 @@ public class Boids : MonoBehaviour
         DispatchComputeShader();
         MoveBoids();
 
-        circleHit = Physics2D.CircleCastAll(new Vector2(0, 0), borderX > borderY ? borderX * (Mathf.Sqrt(2f) / 2f) : borderY * (Mathf.Sqrt(2) / 2f), new Vector2(0, 0), 0f);
-        foreach (var hit in circleHit)
-        {
-            Debug.DrawLine(new Vector2(0, 0), hit.point, Color.cyan);
-            Debug.DrawLine(hit.point, hit.point + hit.normal.normalized, Color.magenta);
-        }
-        Debug.Log(circleHit[0].point);
+        //circleHit = Physics2D.CircleCastAll(new Vector2(0, 0), borderX > borderY ? borderX * (Mathf.Sqrt(2f) / 2f) : borderY * (Mathf.Sqrt(2) / 2f), new Vector2(0, 0), 0f);
+        //foreach (var hit in circleHit)
+        //{
+        //    Debug.DrawLine(new Vector2(0, 0), hit.point, Color.cyan);
+        //    Debug.DrawLine(hit.point, hit.point + hit.normal.normalized, Color.magenta);
+        //}
     }
 
     private void OnDrawGizmos()
@@ -112,6 +113,7 @@ public class Boids : MonoBehaviour
         Gizmos.DrawWireSphere(new Vector3(0, 0, 0), borderX > borderY ? borderX * (Mathf.Sqrt(2f) / 2f) : borderY * (Mathf.Sqrt(2) / 2f) );
     }
 
+    // creates the 4 walls and puts the objects into "walls" variable
     void CreateWalls()
     {
         walls = new GameObject[4];
@@ -170,10 +172,10 @@ public class Boids : MonoBehaviour
         forces = new Vector2[numberOfBoids];
         rotations = new float[numberOfBoids];
         velocities = new Vector2[numberOfBoids];
-        quaternions = new Vector4[numberOfBoids];
         noiseAngles = new float[numberOfBoids];
 
 
+        // spawns the boids into a square pattern
         int squareRoot = Mathf.CeilToInt(Mathf.Sqrt(numberOfBoids));
         for (int i = 0; i < boids.Length; i++)
         {
@@ -190,7 +192,7 @@ public class Boids : MonoBehaviour
             tBoids[i] = boids[i].GetComponent<Transform>();
         }
         var vcam = GameObject.Find("Virtual Camera").GetComponent<CinemachineVirtualCamera>();
-        vcam.Follow = boids[0].transform;
+        //vcam.Follow = boids[0].transform;
 
         gpuPositions = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
         gpuRotations = new ComputeBuffer(numberOfBoids, sizeof(float));
@@ -198,6 +200,15 @@ public class Boids : MonoBehaviour
         gpuVelocities = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
         gpuQuaternions = new ComputeBuffer(numberOfBoids, sizeof(float) * 4);
         gpuNoiseAngles = new ComputeBuffer(numberOfBoids, sizeof(float));
+
+        // We have to init the _Rotations buffer
+        computeShader.SetBuffer(kernel, rotationsID, gpuRotations);
+
+        for (int i = 0; i < numberOfBoids; i++)
+        {
+            rotations[i] = boids[i].transform.rotation.eulerAngles.z;
+        }
+        gpuRotations.SetData(rotations);
 
         UpdateNoiseBuffer();
     }
@@ -235,12 +246,12 @@ public class Boids : MonoBehaviour
         }
 
         //setting up the variables in compute shader and binding buffers
-        computeShader.SetBuffer(0, positionsID, gpuPositions);
-        computeShader.SetBuffer(0, rotationsID, gpuRotations);
-        computeShader.SetBuffer(0, forcesID, gpuForces);
-        computeShader.SetBuffer(0, velocitiesID, gpuVelocities);
-        computeShader.SetBuffer(0, "_Quaternions", gpuQuaternions);
-        computeShader.SetBuffer(0, "_NoiseAngle", gpuNoiseAngles);
+        computeShader.SetBuffer(kernel, positionsID, gpuPositions);
+        
+        computeShader.SetBuffer(kernel, forcesID, gpuForces);
+        computeShader.SetBuffer(kernel, velocitiesID, gpuVelocities);
+        computeShader.SetBuffer(kernel, "_Quaternions", gpuQuaternions);
+        computeShader.SetBuffer(kernel, "_NoiseAngle", gpuNoiseAngles);
         computeShader.SetFloat(forwardWeightID, boidBehaviour.forwardWeight);
         computeShader.SetFloat(separationWeightID, boidBehaviour.separationWeight);
         computeShader.SetFloat(alignmentWeightID, boidBehaviour.alignmentWeight);
@@ -255,19 +266,12 @@ public class Boids : MonoBehaviour
         for (int i = 0; i < numberOfBoids; i++)
         {
             positions[i] = boids[i].transform.position;
-            rotations[i] = boids[i].transform.rotation.eulerAngles.z;
             velocities[i] = rbBoids[i].velocity;
-            quaternions[i].x = tBoids[i].rotation.x;
-            quaternions[i].y = tBoids[i].rotation.y;
-            quaternions[i].z = tBoids[i].rotation.z;
-            quaternions[i].w = tBoids[i].rotation.w;
         }
 
         //loading buffers with data filled above
         gpuPositions.SetData(positions);
-        gpuRotations.SetData(rotations);
         gpuVelocities.SetData(velocities);
-        gpuQuaternions.SetData(quaternions);
 
         int groups = Mathf.CeilToInt(numberOfBoids / 64f);
         computeShader.Dispatch(kernel, groups, 1, 1);
@@ -279,10 +283,12 @@ public class Boids : MonoBehaviour
 
     void MoveBoids()
     {
+        Debug.Log(rotations[0]);
+        Debug.Log(forces[0]);
         for (int i = 0; i < numberOfBoids; i++)
         {
             Vector2 v = new Vector2(-Mathf.Sin(Mathf.Deg2Rad * rotations[i]), Mathf.Cos(Mathf.Deg2Rad * rotations[i]));
-            rbBoids[i].AddForce(new Vector2(float.IsNaN(forces[i].x) ? 0 : forces[i].x * boidBehaviour.forceMultiplier, float.IsNaN(forces[i].y) ? 0 : forces[i].y * boidBehaviour.forceMultiplier) );
+            rbBoids[i].AddForce(new Vector2(float.IsNaN(forces[i].x) ? 0 : forces[i].x * boidBehaviour.forceMultiplier, float.IsNaN(forces[i].y) ? 1 : forces[i].y * boidBehaviour.forceMultiplier) );
 
             Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + forces[i]);
             Debug.DrawLine(rbBoids[i].position, rbBoids[i].position + v, Color.red);
