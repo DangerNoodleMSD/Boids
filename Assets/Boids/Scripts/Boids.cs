@@ -15,8 +15,10 @@ public class Boids : MonoBehaviour
     float scale = 0.5f;
     [SerializeField, Range(0, 200)]
     float borderX = 15f;
+    float lastBorderX;
     [SerializeField, Range(0, 200)]
     float borderY = 9f;
+    float lastBorderY;
 
     [SerializeField]
     GameObject boid;
@@ -70,10 +72,12 @@ public class Boids : MonoBehaviour
         public float noiseWeight;
         [SerializeField, Range(0, 90)]
         public float noiseAngleMax;
+        public bool followBoid;
     }
     
     [SerializeField]
     BoidBehaviour boidBehaviour;
+    BoidBehaviour lastBoidBehaviour;
 
     ComputeBuffer gpuPositions, gpuRotations, gpuForces, gpuVelocities, gpuQuaternions, gpuNoiseAngles;
 
@@ -86,12 +90,11 @@ public class Boids : MonoBehaviour
     private void Awake()
     {
         kernel = computeShader.FindKernel("CSMain");
-        CreateWalls();
     }
     
     private void Update()
     {
-        if(boids.Length != numberOfBoids)
+        if(boids.Length != numberOfBoids || lastBorderX != borderX || lastBorderY != borderY)
         {
             OnDisable();
             OnEnable();
@@ -163,8 +166,23 @@ public class Boids : MonoBehaviour
         }
     }
 
+    void DestroyWalls()
+    {
+        foreach (var wall in walls)
+        {
+            Destroy(wall);
+        }
+        walls = null;
+    }
+
     private void OnEnable()
     {
+        lastBoidBehaviour = boidBehaviour;
+        lastBorderX = borderX;
+        lastBorderY = borderY;
+
+        CreateWalls();
+
         boids = new GameObject[numberOfBoids];
         rbBoids = new Rigidbody2D[numberOfBoids];
         tBoids = new Transform[numberOfBoids];
@@ -192,7 +210,9 @@ public class Boids : MonoBehaviour
             tBoids[i] = boids[i].GetComponent<Transform>();
         }
         var vcam = GameObject.Find("Virtual Camera").GetComponent<CinemachineVirtualCamera>();
-        //vcam.Follow = boids[0].transform;
+
+        if (boidBehaviour.followBoid)
+            vcam.Follow = boids[0].transform;
 
         gpuPositions = new ComputeBuffer(numberOfBoids, sizeof(float) * 2);
         gpuRotations = new ComputeBuffer(numberOfBoids, sizeof(float));
@@ -234,6 +254,7 @@ public class Boids : MonoBehaviour
         gpuVelocities = null;
         gpuQuaternions = null;
         gpuNoiseAngles = null;
+        DestroyWalls();
     }
 
     void DispatchComputeShader()

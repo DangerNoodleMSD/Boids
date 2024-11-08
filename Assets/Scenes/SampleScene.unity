@@ -153,7 +153,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   computeShader: {fileID: 7200000, guid: 43ffaa5d34dcdf2458cd917aa5edc2b3, type: 3}
-  numberOfBoids: 1200
+  numberOfBoids: 200
   scale: 0.3
   borderX: 30
   borderY: 30
@@ -172,6 +172,7 @@ MonoBehaviour:
     noiseUpdate: 1
     noiseWeight: 0.3
     noiseAngleMax: 30
+    followBoid: 0
 --- !u!4 &214899883
 Transform:
   m_ObjectHideFlags: 0
