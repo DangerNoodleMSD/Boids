@@ -153,16 +153,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   computeShader: {fileID: 7200000, guid: 43ffaa5d34dcdf2458cd917aa5edc2b3, type: 3}
-  numberOfBoids: 200
+  numberOfBoids: 2000
   scale: 0.3
-  borderX: 30
+  borderX: 40
   borderY: 30
   boid: {fileID: 1075625185356421612, guid: 3fe9666b9bfabe84caaa2508b2ab7beb, type: 3}
   wall: {fileID: 2552846676128233953, guid: b34b519b239485042a64f73699186450, type: 3}
   boidBehaviour:
     forceMultiplier: 3
     forwardWeight: 1
-    separationWeight: 2
+    separationWeight: 7
     alignmentWeight: 0.2
     cohesionWeight: 1.5
     viewRadius: 2

@@ -54,6 +54,15 @@ float2 MakeVecAnglRel(float angle, float2 parentVector)
     return MakeVecAngl(absoluteAngle);
 }
 
+float easeInQuart(float x)
+{
+    return x * x * x * x;
+}
+float easeInCubic(float x)
+{
+    return x * x * x;
+}
+
 void ComputeVectors(uint id)
 {
     if (id < _NoBoids)
@@ -106,8 +115,9 @@ void ComputeVectors(uint id)
                 {
                     interactions++;
                     
-                    
-                    separation += relativeVec / length(relativeVec) * _ViewRadius - relativeVec;
+                    //distance in percentage compared to _ViewRadius
+                    float distP = (_ViewRadius - length(relativeVec)) / _ViewRadius;
+                    separation += relativeVec / length(relativeVec) * _ViewRadius * easeInCubic(distP);
                     
                     cohesion += _Positions[i];
                     
