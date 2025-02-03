@@ -46,6 +46,7 @@ Problema care am incercat sa o rezolv este a vitezei de calcul a fortelor dintre
 
 ## Fișiere
 
+<BR>
 
 ### /Assets/Boids/Scripts/Boids.cs
 
@@ -57,6 +58,7 @@ Aici sunt incarcate pozitiile boizilor, vitezele lor si un vector de float-uri r
 **MoveBoids**
 In aceasta functie este preluat vectorul de forte si sunt aplicate pe fiecare boid.
 
+<BR>
 
 ### /Assets/Boids/Scripts/BoidCompute.compute
 
