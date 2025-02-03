@@ -56,6 +56,7 @@ Aici sunt incarcate pozitiile boizilor, vitezele lor si un vector de float-uri r
 **MoveBoids**
 In aceasta functie este preluat vectorul de forte si sunt aplicate pe fiecare boid.
 
+<HR width="50%" align="center">
 ### /Assets/Boids/Scripts/BoidCompute.compute
 
 In acest fisier se calculeaza fortele boizilor. Fiecare instanta de functie ce ruleaza foloseste variabila **id.x** pentru a cunoaste pe care boid trebuie sa lucreze.
