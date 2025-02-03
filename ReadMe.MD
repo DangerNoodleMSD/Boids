@@ -46,6 +46,7 @@ Problema care am incercat sa o rezolv este a vitezei de calcul a fortelor dintre
 
 ## Fișiere
 
+
 ### /Assets/Boids/Scripts/Boids.cs
 
 Fisierul Boids.cs ruleaza pe CPU. El este necesar deoarece GPU-ul nu poate interactiona cu Game Object-uri (boizii) si functiile game engine-ului in general. Setarile importante comportamentului boizilor sunt localizate in struct-ul BoidBehaviour ce este creat ca un camp serializabil (este important pentru a putea schimba valorile variabilelor din unity si nu din cod in sine). Majoritatea codului de aici se axeaza pe setarea mediului atunci cand valori despre boizi (numarul lor, comportamentul) si interactiunea lor cu peretii. Partea importanta se intampla in **DispatchComputeShader** si **MoveBoids**.
@@ -56,7 +57,7 @@ Aici sunt incarcate pozitiile boizilor, vitezele lor si un vector de float-uri r
 **MoveBoids**
 In aceasta functie este preluat vectorul de forte si sunt aplicate pe fiecare boid.
 
-<HR width="50%" align="center">
+
 ### /Assets/Boids/Scripts/BoidCompute.compute
 
 In acest fisier se calculeaza fortele boizilor. Fiecare instanta de functie ce ruleaza foloseste variabila **id.x** pentru a cunoaste pe care boid trebuie sa lucreze.
