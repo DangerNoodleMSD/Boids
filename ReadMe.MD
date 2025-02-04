@@ -16,7 +16,7 @@ Pentru a intelege comportamentul boizilor este necesar sa intelegem regulile fun
 **2. Alignment (aliniere)**
 **3. Cohesion (coeziune)**
 
-### 1. Separation
+### 1. Separation (separatie)
 
 Separatia este folosita pentru a incerca sa facem ca boizii sa nu se izbeasca intre ei.
 
@@ -24,7 +24,7 @@ Separatia este folosita pentru a incerca sa facem ca boizii sa nu se izbeasca in
     <img src="Rule_separation.gif" style="width:50%"></img>
 </div>
 
-### 2. Alignment
+### 2. Alignment (aliniere)
 
 Alinierea este necesara pentru a crea stoluri in care boizii sa incerce sa mearga in aceeasi directie.
 
@@ -32,7 +32,7 @@ Alinierea este necesara pentru a crea stoluri in care boizii sa incerce sa mearg
     <img src="Rule_alignment.gif" style="width:50%"></img>
 </div>
 
-### 3. Cohesion
+### 3. Cohesion(coeziune)
 
 Coeziunea impinge boizii sa creeze stoluri in care fiecare dintre ei incearca sa ajunga in centru, fiind opriti de catre separatie din a se izbi unii cu altii.
 
@@ -44,7 +44,7 @@ Coeziunea impinge boizii sa creeze stoluri in care fiecare dintre ei incearca sa
 
 Problema care am incercat sa o rezolv este a vitezei de calcul a fortelor dintre boizi (trebuie ca fiecare boid sa verifice pozitiile tuturor celorlalti boizi ceea ce face ca programul sa aiba o complexitate de O(n<sup>2</sup>) in relatie cu numarul de boizi). Prima solutie evidenta este sa facem calculele secvential pe CPU. Aceasta abordare devine ineficienta foarte rapid cu numar marit de boizi. Solutia acestei probleme folosita de mine a fost utilizarea puterii de calcul in paralel al GPU-ului (CPU-ul meu I7-11700kf are 8 core-uri, pe cand GPU-ul RTX 2070 Super are 2560). O alta solutie ce nu va fi discutata aici si ce nu presupune brute force este un Quad Tree, dar aceasta este o implementare pe CPU.
 
-## Fișiere
+## Fișiere imagine de ansamblu
 
 <BR>
 
@@ -63,3 +63,11 @@ In aceasta functie este preluat vectorul de forte si sunt aplicate pe fiecare bo
 ### /Assets/Boids/Scripts/BoidCompute.compute
 
 In acest fisier se calculeaza fortele boizilor. Fiecare instanta de functie ce ruleaza foloseste variabila **id.x** pentru a cunoaste pe care boid trebuie sa lucreze.
+
+
+## Fisiere in detaliu
+
+### /Assets/Boids/Scripts/Boids.cs
+
+Programul incepe in functia **Awake** in care se cauta numarul asociat kernelului compute shader-ului creat.
+    kernel = computeShader.FindKernel("CSMain");
